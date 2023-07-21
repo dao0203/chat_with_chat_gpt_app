@@ -23,17 +23,45 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
   var chat = [];
-
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
+    final messageController = TextEditingController();
+
+    Future<void> sendMessage(String message) async {
+      //APIキーを.envから取得
+      final apiKey = dotenv.get("OPENAI_API_KEY");
+      //リクエストボディを追加してリクエストを送信
+      final response = await http.post(
+        Uri.parse("https://api.openai.com/v1/chat/completions"),
+        //https://platform.openai.com/docs/api-reference/chat/create
+        body: jsonEncode({
+          "model": "gpt-3.5-turbo",
+          "messages": [
+            {"role": "user", "content": message}
+          ],
+        }),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $apiKey"
+        },
+      );
+
+      //レスポンスをデコードして表示
+      setState(() {
+        //日本語だと文字化けするのでutf8でデコード
+        final decodedResponse = utf8.decode(response.body.runes.toList());
+
+        final decodedToJson = jsonDecode(decodedResponse);
+        final content = decodedToJson["choices"][0]["message"]["content"];
+        debugPrint(decodedResponse.toString());
+        //チャットに追加
+        chat.add(content);
+      });
+    }
+
+    //画面を作成していく
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -53,39 +81,31 @@ class _MyHomePageState extends State<MyHomePage> {
                 },
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                      child: TextField(
+                    maxLines: 1,
+                    cursorRadius: const Radius.circular(10),
+                    controller: messageController,
+                    decoration: const InputDecoration(
+                      hintText: "メッセージを入力",
+                    ),
+                    onEditingComplete: () {
+                      //キーボードの完了ボタンを押したときに送信
+                      sendMessage(messageController.text);
+                      //入力欄をクリア
+                      messageController.clear();
+                    },
+                  )),
+                ],
+              ),
+            ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          //APIキーを.envから取得
-          final apiKey = dotenv.get("OPENAI_API_KEY");
-          //リクエストボディを追加してリクエストを送信
-          final response = await http.post(
-            Uri.parse("https://api.openai.com/v1/chat/completions"),
-            //https://platform.openai.com/docs/api-reference/chat/create
-            body: jsonEncode({
-              "model": "gpt-3.5-turbo",
-              "messages": [
-                {"role": "user", "content": "Hello, I'm a human."}
-              ],
-            }),
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": "Bearer $apiKey"
-            },
-          );
-          setState(() {
-            final decoded = jsonDecode(response.body);
-            final content = decoded["choices"][0]["message"]["content"];
-            debugPrint(decoded.toString());
-            debugPrint(content);
-            chat.add(content);
-          });
-        },
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
