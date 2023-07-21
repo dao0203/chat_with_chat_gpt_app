@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -39,18 +43,46 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            Expanded(
+              child: ListView.builder(
+                itemCount: chat.length,
+                itemBuilder: (context, index) {
+                  return ListTile(
+                    title: Text(chat[index]),
+                  );
+                },
+              ),
             ),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
+        onPressed: () async {
+          //APIキーを.envから取得
+          final apiKey = dotenv.get("OPENAI_API_KEY");
+          //リクエストボディを追加してリクエストを送信
+          final response = await http.post(
+            Uri.parse("https://api.openai.com/v1/chat/completions"),
+            //https://platform.openai.com/docs/api-reference/chat/create
+            body: jsonEncode({
+              "model": "gpt-3.5-turbo",
+              "messages": [
+                {"role": "user", "content": "Hello, I'm a human."}
+              ],
+            }),
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer $apiKey"
+            },
+          );
+          setState(() {
+            final decoded = jsonDecode(response.body);
+            final content = decoded["choices"][0]["message"]["content"];
+            debugPrint(decoded.toString());
+            debugPrint(content);
+            chat.add(content);
+          });
+        },
         tooltip: 'Increment',
         child: const Icon(Icons.add),
       ), // This trailing comma makes auto-formatting nicer for build methods.
